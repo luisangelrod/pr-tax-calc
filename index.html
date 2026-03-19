@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR Tax Pro — Puerto Rico Salary & Tax Calculator</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0a0f;--card:#0d1117;--card-border:#1b1f27;
+    --accent:#64ffda;--accent-dim:rgba(100,255,218,.15);
+    --text:#e6edf3;--text-dim:#8b949e;--text-muted:#484f58;
+    --red:#f85149;--orange:#f0883e;--yellow:#e3b341;--green:#3fb950;--blue:#58a6ff;--purple:#bc8cff;
+    --radius:10px;--mono:'SF Mono','Cascadia Code','Fira Code',Consolas,monospace;
+  }
+  html{font-size:16px;scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;line-height:1.5;min-height:100vh}
+  h1,h2,h3{font-weight:600;letter-spacing:-.02em}
+  .mono{font-family:var(--mono)}
+
+  /* Layout */
+  .app{max-width:1400px;margin:0 auto;padding:1.5rem}
+  .header{text-align:center;padding:2rem 0 1.5rem;border-bottom:1px solid var(--card-border);margin-bottom:1.5rem}
+  .header h1{font-size:2rem;color:var(--accent);font-family:var(--mono)}
+  .header p{color:var(--text-dim);font-size:.875rem;margin-top:.25rem}
+  .main-grid{display:grid;grid-template-columns:1fr;gap:1.25rem}
+  @media(min-width:900px){.main-grid{grid-template-columns:1fr 1fr}}
+  @media(min-width:1200px){.main-grid{grid-template-columns:1fr 1fr 1fr}}
+
+  /* Cards */
+  .card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:1.25rem;position:relative;overflow:hidden}
+  .card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent);opacity:.4}
+  .card-title{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+  .card-title svg{width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:2}
+  .card.full-width{grid-column:1/-1}
+
+  /* Inputs */
+  .input-grid{display:grid;grid-template-columns:1fr;gap:.75rem}
+  @media(min-width:600px){.input-grid{grid-template-columns:1fr 1fr}}
+  @media(min-width:900px){.input-grid{grid-template-columns:1fr 1fr 1fr}}
+  .field{display:flex;flex-direction:column;gap:.25rem}
+  .field label{font-size:.75rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em}
+  .field input,.field select{background:#161b22;border:1px solid var(--card-border);border-radius:6px;color:var(--text);padding:.5rem .75rem;font-size:.9375rem;font-family:var(--mono);transition:border-color .15s}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+  .field input.salary-input{font-size:1.75rem;padding:.75rem 1rem;text-align:center;border-color:var(--accent);background:rgba(100,255,218,.04)}
+  .field select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%238b949e' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .75rem center}
+
+  /* Toggle group */
+  .toggle-group{display:flex;border-radius:6px;overflow:hidden;border:1px solid var(--card-border)}
+  .toggle-group button{flex:1;padding:.4rem .5rem;font-size:.75rem;background:#161b22;color:var(--text-dim);border:none;cursor:pointer;transition:all .15s;font-family:system-ui,sans-serif}
+  .toggle-group button.active{background:var(--accent);color:var(--bg);font-weight:600}
+  .toggle-group button:not(:last-child){border-right:1px solid var(--card-border)}
+
+  /* Results */
+  .result-row{display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.04)}
+  .result-row:last-child{border-bottom:none}
+  .result-label{color:var(--text-dim);font-size:.8125rem}
+  .result-value{font-family:var(--mono);font-size:.9rem;color:var(--text)}
+  .result-value.accent{color:var(--accent);font-weight:600}
+  .result-value.red{color:var(--red)}
+  .big-number{font-family:var(--mono);font-size:2.25rem;font-weight:700;color:var(--accent);line-height:1.1}
+  .big-number.small{font-size:1.5rem}
+  .sub-text{font-size:.75rem;color:var(--text-dim);margin-top:.25rem}
+
+  /* Bracket viz */
+  .bracket-bar{display:flex;height:32px;border-radius:6px;overflow:hidden;margin:.75rem 0}
+  .bracket-bar .seg{transition:width .4s ease}
+  .bracket-legend{display:grid;grid-template-columns:1fr 1fr;gap:.25rem .75rem}
+  .bracket-legend-item{display:flex;align-items:center;gap:.4rem;font-size:.75rem}
+  .bracket-legend-item .dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+  /* Goal planner */
+  .goal-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;align-items:end}
+  @media(max-width:600px){.goal-row{grid-template-columns:1fr}}
+  .slider-wrap{display:flex;flex-direction:column;gap:.25rem}
+  .slider-wrap input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:#161b22;outline:none}
+  .slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg)}
+  .goal-result{background:rgba(100,255,218,.06);border:1px solid rgba(100,255,218,.15);border-radius:8px;padding:1rem;margin-top:.75rem;text-align:center}
+
+  /* Comparison */
+  .compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.75rem}
+  @media(max-width:600px){.compare-grid{grid-template-columns:1fr}}
+  .compare-card{background:#161b22;border-radius:8px;padding:1rem;text-align:center}
+  .compare-card h4{font-size:.75rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem}
+  .savings-banner{grid-column:1/-1;background:rgba(100,255,218,.06);border:1px solid rgba(100,255,218,.15);border-radius:8px;padding:.75rem;text-align:center;font-family:var(--mono);color:var(--accent);font-size:1.1rem}
+  .savings-banner.negative{background:rgba(248,81,73,.06);border-color:rgba(248,81,73,.15);color:var(--red)}
+
+  /* Actions */
+  .actions{display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;margin-top:1.5rem}
+  .btn{padding:.5rem 1.25rem;border-radius:6px;font-size:.8125rem;font-weight:600;cursor:pointer;border:none;transition:all .15s;font-family:system-ui,sans-serif}
+  .btn-primary{background:var(--accent);color:var(--bg)}
+  .btn-primary:hover{opacity:.85}
+  .btn-outline{background:transparent;border:1px solid var(--card-border);color:var(--text-dim)}
+  .btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* Disclaimer */
+  .disclaimer{text-align:center;padding:1.5rem 0;font-size:.75rem;color:var(--text-muted);border-top:1px solid var(--card-border);margin-top:1.5rem}
+
+  /* Animations */
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .card{animation:fadeIn .3s ease both}
+  .card:nth-child(2){animation-delay:.05s}
+  .card:nth-child(3){animation-delay:.1s}
+  .card:nth-child(4){animation-delay:.15s}
+  .card:nth-child(5){animation-delay:.2s}
+  .card:nth-child(6){animation-delay:.25s}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <h1>PR Tax Pro</h1>
+    <p>Puerto Rico Salary & Tax Calculator — 2024 Rates</p>
+  </header>
+
+  <!-- INPUT PANEL -->
+  <div class="card full-width" style="grid-column:1/-1;margin-bottom:.5rem">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/></svg>
+      Income & Filing Details
+    </div>
+    <div style="text-align:center;margin-bottom:1rem">
+      <div class="field" style="max-width:400px;margin:0 auto">
+        <label>Annual Salary</label>
+        <input type="text" id="salary" class="salary-input mono" value="75,000" inputmode="decimal" autocomplete="off">
+      </div>
+    </div>
+    <div class="input-grid">
+      <div class="field">
+        <label>Employment Type</label>
+        <div class="toggle-group" id="empType">
+          <button class="active" data-val="w2">W-2</button>
+          <button data-val="1099">1099 / Self</button>
+          <button data-val="mixed">Mixed</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Filing Status</label>
+        <select id="filingStatus">
+          <option value="single">Single</option>
+          <option value="married">Married Filing Jointly</option>
+          <option value="head">Head of Household</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Dependents</label>
+        <select id="dependents">
+          <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+          <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+          <option value="6">6</option><option value="7">7</option><option value="8">8</option>
+          <option value="9">9</option><option value="10">10</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Act 22/60 Holder</label>
+        <div class="toggle-group" id="act22">
+          <button data-val="no" class="active">No</button>
+          <button data-val="yes">Yes</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Federal Income</label>
+        <div class="toggle-group" id="fedIncome">
+          <button class="active" data-val="exempt">PR Only (Exempt)</button>
+          <button data-val="liable">Has US-Sourced</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Pay Period View</label>
+        <select id="payPeriod">
+          <option value="annual">Annual</option>
+          <option value="monthly">Monthly</option>
+          <option value="biweekly">Biweekly</option>
+          <option value="weekly">Weekly</option>
+          <option value="hourly">Hourly</option>
+        </select>
+      </div>
+      <div class="field" id="hoursField" style="display:none">
+        <label>Hours / Week</label>
+        <input type="number" id="hoursPerWeek" value="40" min="1" max="80">
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS GRID -->
+  <div class="main-grid">
+
+    <!-- Card 1: Gross Pay -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        Gross Pay
+      </div>
+      <div id="grossPay" class="big-number">$75,000</div>
+      <div class="sub-text">per year</div>
+      <div style="margin-top:.75rem" id="grossBreakdown">
+        <div class="result-row"><span class="result-label">Monthly</span><span class="result-value mono" id="grossMonthly">$6,250</span></div>
+        <div class="result-row"><span class="result-label">Biweekly</span><span class="result-value mono" id="grossBiweekly">$2,885</span></div>
+        <div class="result-row"><span class="result-label">Weekly</span><span class="result-value mono" id="grossWeekly">$1,442</span></div>
+      </div>
+    </div>
+
+    <!-- Card 2: Deductions -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2z"/><path d="M9 12h6M12 9v6"/></svg>
+        Deductions Breakdown
+      </div>
+      <div id="deductionsList"></div>
+      <div class="result-row" style="border-top:2px solid var(--accent);margin-top:.5rem;padding-top:.5rem">
+        <span class="result-label" style="font-weight:600;color:var(--text)">Total Deductions</span>
+        <span class="result-value mono red" id="totalDeductions">$0</span>
+      </div>
+    </div>
+
+    <!-- Card 3: Take-Home -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Take-Home Pay
+      </div>
+      <div id="takeHome" class="big-number">$0</div>
+      <div class="sub-text">per year</div>
+      <div style="margin-top:.75rem" id="takeHomeBreakdown">
+        <div class="result-row"><span class="result-label">Monthly</span><span class="result-value mono accent" id="netMonthly">$0</span></div>
+        <div class="result-row"><span class="result-label">Biweekly</span><span class="result-value mono accent" id="netBiweekly">$0</span></div>
+        <div class="result-row"><span class="result-label">Weekly</span><span class="result-value mono accent" id="netWeekly">$0</span></div>
+      </div>
+      <div class="result-row" style="margin-top:.5rem;border-top:1px solid var(--card-border);padding-top:.5rem">
+        <span class="result-label">Effective Tax Rate</span>
+        <span class="result-value mono" id="effectiveRate" style="color:var(--yellow)">0%</span>
+      </div>
+    </div>
+
+    <!-- Card 4: Bracket Viz -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        Tax Bracket Visualization
+      </div>
+      <div id="bracketBar" class="bracket-bar"></div>
+      <div id="bracketLegend" class="bracket-legend"></div>
+    </div>
+
+    <!-- Card 5: Goal Planner -->
+    <div class="card full-width">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        Goal Planner — How long to reach your goal?
+      </div>
+      <div class="goal-row">
+        <div class="field">
+          <label>Goal Amount ($)</label>
+          <input type="text" id="goalAmount" value="2,000" inputmode="decimal" class="mono">
+        </div>
+        <div class="slider-wrap">
+          <label style="font-size:.75rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between">
+            <span>Monthly Savings Rate</span>
+            <span class="mono" id="savingsRateLabel" style="color:var(--accent)">20%</span>
+          </label>
+          <input type="range" id="savingsRate" min="5" max="70" value="20">
+        </div>
+      </div>
+      <div class="goal-result" id="goalResult"></div>
+    </div>
+
+    <!-- Card 6: US Comparison -->
+    <div class="card full-width">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v-2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+        Comparison: PR vs US State
+      </div>
+      <div class="field" style="max-width:300px;margin-bottom:.75rem">
+        <label>Compare with US State</label>
+        <select id="compareState"></select>
+      </div>
+      <div class="compare-grid" id="compareGrid"></div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <button class="btn btn-primary" onclick="copyToClipboard()">Copy Summary</button>
+    <button class="btn btn-outline" onclick="shareURL()">Share Link</button>
+  </div>
+
+  <div class="disclaimer">
+    This is an estimate for informational purposes only. Consult a licensed CPA for official tax advice.<br>
+    Rates reflect Puerto Rico 2024 tax year. Federal rates for comparison only.
+  </div>
+</div>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────────
+const PR_BRACKETS = [
+  { min: 0, max: 9000, rate: 0, label: '0%' },
+  { min: 9000, max: 25000, rate: 0.07, label: '7%' },
+  { min: 25000, max: 41500, rate: 0.14, label: '14%' },
+  { min: 41500, max: 61500, rate: 0.25, label: '25%' },
+  { min: 61500, max: Infinity, rate: 0.33, label: '33%' },
+];
+
+const BRACKET_COLORS = ['#3fb950', '#58a6ff', '#bc8cff', '#f0883e', '#f85149'];
+
+const SS_WAGE_BASE = 168600;
+const SS_RATE = 0.062;
+const MEDICARE_RATE = 0.0145;
+const ADD_MEDICARE_THRESHOLD = 200000;
+const ADD_MEDICARE_RATE = 0.009;
+const PR_DISABILITY_RATE = 0.003;
+const PR_DISABILITY_MAX = 9;
+const SE_TAX_RATE = 0.153;
+const SE_INCOME_FACTOR = 0.9235;
+const GRADUAL_ADJ_THRESHOLD = 150000;
+const GRADUAL_ADJ_RATE = 0.05;
+
+const PERSONAL_EXEMPTIONS = { single: 3500, married: 7000, head: 3500 };
+const DEPENDENT_DEDUCTION = 1500;
+
+// Federal brackets 2024 (single)
+const FED_BRACKETS_SINGLE = [
+  { min: 0, max: 11600, rate: 0.10 },
+  { min: 11600, max: 47150, rate: 0.12 },
+  { min: 47150, max: 100525, rate: 0.22 },
+  { min: 100525, max: 191950, rate: 0.24 },
+  { min: 191950, max: 243725, rate: 0.32 },
+  { min: 243725, max: 609350, rate: 0.35 },
+  { min: 609350, max: Infinity, rate: 0.37 },
+];
+const FED_STANDARD_DEDUCTION_SINGLE = 14600;
+
+// US State income tax (simplified top marginal rates for comparison)
+const US_STATES = [
+  { code: 'AL', name: 'Alabama', rate: 0.05 },
+  { code: 'AK', name: 'Alaska', rate: 0 },
+  { code: 'AZ', name: 'Arizona', rate: 0.025 },
+  { code: 'AR', name: 'Arkansas', rate: 0.044 },
+  { code: 'CA', name: 'California', rate: 0.133 },
+  { code: 'CO', name: 'Colorado', rate: 0.044 },
+  { code: 'CT', name: 'Connecticut', rate: 0.0699 },
+  { code: 'DE', name: 'Delaware', rate: 0.066 },
+  { code: 'FL', name: 'Florida', rate: 0 },
+  { code: 'GA', name: 'Georgia', rate: 0.0549 },
+  { code: 'HI', name: 'Hawaii', rate: 0.11 },
+  { code: 'ID', name: 'Idaho', rate: 0.058 },
+  { code: 'IL', name: 'Illinois', rate: 0.0495 },
+  { code: 'IN', name: 'Indiana', rate: 0.0305 },
+  { code: 'IA', name: 'Iowa', rate: 0.06 },
+  { code: 'KS', name: 'Kansas', rate: 0.057 },
+  { code: 'KY', name: 'Kentucky', rate: 0.04 },
+  { code: 'LA', name: 'Louisiana', rate: 0.0425 },
+  { code: 'ME', name: 'Maine', rate: 0.0715 },
+  { code: 'MD', name: 'Maryland', rate: 0.0575 },
+  { code: 'MA', name: 'Massachusetts', rate: 0.05 },
+  { code: 'MI', name: 'Michigan', rate: 0.0425 },
+  { code: 'MN', name: 'Minnesota', rate: 0.0985 },
+  { code: 'MS', name: 'Mississippi', rate: 0.05 },
+  { code: 'MO', name: 'Missouri', rate: 0.048 },
+  { code: 'MT', name: 'Montana', rate: 0.059 },
+  { code: 'NE', name: 'Nebraska', rate: 0.0584 },
+  { code: 'NV', name: 'Nevada', rate: 0 },
+  { code: 'NH', name: 'New Hampshire', rate: 0.03 },
+  { code: 'NJ', name: 'New Jersey', rate: 0.1075 },
+  { code: 'NM', name: 'New Mexico', rate: 0.059 },
+  { code: 'NY', name: 'New York', rate: 0.109 },
+  { code: 'NC', name: 'North Carolina', rate: 0.045 },
+  { code: 'ND', name: 'North Dakota', rate: 0.025 },
+  { code: 'OH', name: 'Ohio', rate: 0.035 },
+  { code: 'OK', name: 'Oklahoma', rate: 0.0475 },
+  { code: 'OR', name: 'Oregon', rate: 0.099 },
+  { code: 'PA', name: 'Pennsylvania', rate: 0.0307 },
+  { code: 'RI', name: 'Rhode Island', rate: 0.0599 },
+  { code: 'SC', name: 'South Carolina', rate: 0.064 },
+  { code: 'SD', name: 'South Dakota', rate: 0 },
+  { code: 'TN', name: 'Tennessee', rate: 0 },
+  { code: 'TX', name: 'Texas', rate: 0 },
+  { code: 'UT', name: 'Utah', rate: 0.0465 },
+  { code: 'VT', name: 'Vermont', rate: 0.0875 },
+  { code: 'VA', name: 'Virginia', rate: 0.0575 },
+  { code: 'WA', name: 'Washington', rate: 0 },
+  { code: 'WV', name: 'West Virginia', rate: 0.055 },
+  { code: 'WI', name: 'Wisconsin', rate: 0.0765 },
+  { code: 'WY', name: 'Wyoming', rate: 0 },
+];
+
+// ─── Helpers ─────────────────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => n < 0 ? '-$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                         : '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtD = (n, d = 2) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (n) => (n * 100).toFixed(1) + '%';
+const parseNum = (s) => parseFloat(String(s).replace(/[^0-9.\-]/g, '')) || 0;
+
+function formatSalaryInput(el) {
+  const v = parseNum(el.value);
+  if (v > 0) el.value = v.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function calculateProgressiveTax(taxableIncome, brackets) {
+  let tax = 0;
+  const breakdown = [];
+  for (const b of brackets) {
+    const lo = b.min;
+    const hi = b.max === Infinity ? taxableIncome : b.max;
+    if (taxableIncome <= lo) { breakdown.push({ ...b, amount: 0, taxed: 0 }); continue; }
+    const inBracket = Math.min(taxableIncome, hi) - lo;
+    const taxed = inBracket * b.rate;
+    tax += taxed;
+    breakdown.push({ ...b, amount: inBracket, taxed });
+  }
+  return { total: tax, breakdown };
+}
+
+// ─── Inputs ──────────────────────────────────────────────────────
+function getInputs() {
+  const salary = parseNum($('salary').value);
+  const empType = document.querySelector('#empType button.active')?.dataset.val || 'w2';
+  const filingStatus = $('filingStatus').value;
+  const dependents = parseInt($('dependents').value, 10);
+  const act22 = document.querySelector('#act22 button.active')?.dataset.val === 'yes';
+  const hasFederal = document.querySelector('#fedIncome button.active')?.dataset.val === 'liable';
+  const payPeriod = $('payPeriod').value;
+  const hoursPerWeek = parseNum($('hoursPerWeek').value) || 40;
+  return { salary, empType, filingStatus, dependents, act22, hasFederal, payPeriod, hoursPerWeek };
+}
+
+// ─── Core Calculation ────────────────────────────────────────────
+function calculate(inputs) {
+  const { salary, empType, filingStatus, dependents, act22, hasFederal } = inputs;
+  const isSE = empType === '1099';
+  const isMixed = empType === 'mixed';
+
+  // For mixed: assume 50/50 split
+  const w2Portion = isMixed ? salary * 0.5 : (isSE ? 0 : salary);
+  const sePortion = isMixed ? salary * 0.5 : (isSE ? salary : 0);
+
+  // Self-employment tax
+  const seIncome = sePortion * SE_INCOME_FACTOR;
+  const seTax = seIncome * SE_TAX_RATE;
+  const seDeduction = seTax * 0.5;
+
+  // Personal exemption & dependent deduction
+  const personalExemption = PERSONAL_EXEMPTIONS[filingStatus] || 3500;
+  const dependentDeduction = dependents * DEPENDENT_DEDUCTION;
+
+  // PR Taxable Income
+  const prTaxableIncome = Math.max(0, salary - personalExemption - dependentDeduction - seDeduction);
+
+  // PR Income Tax (progressive)
+  const prResult = calculateProgressiveTax(prTaxableIncome, PR_BRACKETS);
+  let prTax = prResult.total;
+
+  // Gradual adjustment
+  let gradualAdj = 0;
+  if (salary > GRADUAL_ADJ_THRESHOLD) {
+    gradualAdj = (salary - GRADUAL_ADJ_THRESHOLD) * GRADUAL_ADJ_RATE;
+    prTax += gradualAdj;
+  }
+
+  // FICA (W-2 portion only)
+  const socialSecurity = Math.min(w2Portion, SS_WAGE_BASE) * SS_RATE;
+  const medicare = w2Portion * MEDICARE_RATE;
+  const additionalMedicare = w2Portion > ADD_MEDICARE_THRESHOLD ? (w2Portion - ADD_MEDICARE_THRESHOLD) * ADD_MEDICARE_RATE : 0;
+
+  // PR Disability (W-2 only)
+  const disability = Math.min(w2Portion * PR_DISABILITY_RATE, PR_DISABILITY_MAX);
+
+  // Federal tax
+  let federalTax = 0;
+  if (hasFederal) {
+    const fedTaxable = Math.max(0, salary - FED_STANDARD_DEDUCTION_SINGLE - seDeduction);
+    federalTax = calculateProgressiveTax(fedTaxable, FED_BRACKETS_SINGLE).total;
+  }
+
+  // Totals
+  const totalFica = isSE ? seTax : (socialSecurity + medicare + additionalMedicare + (isMixed ? seTax : 0));
+  const totalDeductions = prTax + totalFica + disability + federalTax;
+  const takeHome = salary - totalDeductions;
+
+  return {
+    salary,
+    prTax,
+    prTaxBase: prResult.total - 0, // base before gradual
+    gradualAdj,
+    socialSecurity,
+    medicare,
+    additionalMedicare,
+    seTax: (isSE || isMixed) ? seTax : 0,
+    disability,
+    federalTax,
+    totalDeductions,
+    takeHome,
+    effectiveRate: salary > 0 ? totalDeductions / salary : 0,
+    bracketBreakdown: prResult.breakdown,
+    isSE,
+    isMixed,
+  };
+}
+
+// ─── US Comparison ───────────────────────────────────────────────
+function calculateUSComparison(salary, stateRate) {
+  // Federal
+  const fedTaxable = Math.max(0, salary - FED_STANDARD_DEDUCTION_SINGLE);
+  const fedTax = calculateProgressiveTax(fedTaxable, FED_BRACKETS_SINGLE).total;
+  // State (simplified flat rate on AGI)
+  const stateTax = salary * stateRate;
+  // FICA
+  const ss = Math.min(salary, SS_WAGE_BASE) * SS_RATE;
+  const med = salary * MEDICARE_RATE;
+  const addMed = salary > ADD_MEDICARE_THRESHOLD ? (salary - ADD_MEDICARE_THRESHOLD) * ADD_MEDICARE_RATE : 0;
+  const total = fedTax + stateTax + ss + med + addMed;
+  return { fedTax, stateTax, fica: ss + med + addMed, total, takeHome: salary - total };
+}
+
+// ─── Render ──────────────────────────────────────────────────────
+function render() {
+  const inputs = getInputs();
+  const r = calculate(inputs);
+
+  // Gross pay
+  $('grossPay').textContent = fmt(r.salary);
+  $('grossMonthly').textContent = fmt(Math.round(r.salary / 12));
+  $('grossBiweekly').textContent = fmt(Math.round(r.salary / 26));
+  $('grossWeekly').textContent = fmt(Math.round(r.salary / 52));
+
+  // Deductions list
+  const deductions = [];
+  deductions.push({ label: 'PR Income Tax', value: r.prTax, pct: r.salary > 0 ? r.prTax / r.salary : 0 });
+  if (r.gradualAdj > 0) {
+    deductions.push({ label: '  └ Includes gradual adj.', value: r.gradualAdj, pct: 0, sub: true });
+  }
+  if (r.isSE || r.isMixed) {
+    deductions.push({ label: 'Self-Employment Tax', value: r.seTax, pct: r.salary > 0 ? r.seTax / r.salary : 0 });
+  } else {
+    deductions.push({ label: 'Social Security', value: r.socialSecurity, pct: r.salary > 0 ? r.socialSecurity / r.salary : 0 });
+    deductions.push({ label: 'Medicare', value: r.medicare + r.additionalMedicare, pct: r.salary > 0 ? (r.medicare + r.additionalMedicare) / r.salary : 0 });
+  }
+  if (r.isMixed) {
+    deductions.push({ label: 'Social Security (W-2)', value: r.socialSecurity, pct: r.salary > 0 ? r.socialSecurity / r.salary : 0 });
+    deductions.push({ label: 'Medicare (W-2)', value: r.medicare + r.additionalMedicare, pct: r.salary > 0 ? (r.medicare + r.additionalMedicare) / r.salary : 0 });
+  }
+  deductions.push({ label: 'PR Disability (SINOT)', value: r.disability, pct: r.salary > 0 ? r.disability / r.salary : 0 });
+  deductions.push({ label: 'Federal Income Tax', value: r.federalTax, pct: r.salary > 0 ? r.federalTax / r.salary : 0, exempt: r.federalTax === 0 });
+
+  let html = '';
+  for (const d of deductions) {
+    const valStr = d.exempt ? '$0 (Exempt)' : fmt(Math.round(d.value));
+    const pctStr = d.sub ? '' : (d.exempt ? '' : `(${pct(d.pct)})`);
+    html += `<div class="result-row">
+      <span class="result-label">${d.label}</span>
+      <span class="result-value mono">${valStr} <span style="color:var(--text-muted);font-size:.75rem">${pctStr}</span></span>
+    </div>`;
+  }
+  $('deductionsList').innerHTML = html;
+  $('totalDeductions').textContent = fmt(Math.round(r.totalDeductions));
+
+  // Take-home
+  $('takeHome').textContent = fmt(Math.round(r.takeHome));
+  $('netMonthly').textContent = fmt(Math.round(r.takeHome / 12));
+  $('netBiweekly').textContent = fmt(Math.round(r.takeHome / 26));
+  $('netWeekly').textContent = fmt(Math.round(r.takeHome / 52));
+  $('effectiveRate').textContent = pct(r.effectiveRate);
+
+  // Bracket visualization
+  const totalInBrackets = r.bracketBreakdown.reduce((s, b) => s + b.amount, 0);
+  let barHTML = '';
+  let legendHTML = '';
+  r.bracketBreakdown.forEach((b, i) => {
+    const w = totalInBrackets > 0 ? (b.amount / totalInBrackets * 100) : 0;
+    if (w > 0) {
+      barHTML += `<div class="seg" style="width:${w}%;background:${BRACKET_COLORS[i]}" title="${b.label}: ${fmt(Math.round(b.amount))}"></div>`;
+    }
+    legendHTML += `<div class="bracket-legend-item">
+      <span class="dot" style="background:${BRACKET_COLORS[i]}"></span>
+      <span>${b.label}: ${fmt(Math.round(b.amount))}</span>
+      <span class="mono" style="color:var(--text-muted);font-size:.7rem;margin-left:auto">${fmt(Math.round(b.taxed))} tax</span>
+    </div>`;
+  });
+  $('bracketBar').innerHTML = barHTML;
+  $('bracketLegend').innerHTML = legendHTML;
+
+  // Goal planner
+  renderGoal(r);
+
+  // Comparison
+  renderComparison(r);
+
+  // URL update
+  updateURL(inputs);
+}
+
+function renderGoal(r) {
+  const goalAmount = parseNum($('goalAmount').value);
+  const savingsRate = parseInt($('savingsRate').value, 10) / 100;
+  $('savingsRateLabel').textContent = (savingsRate * 100).toFixed(0) + '%';
+
+  const monthlyTakeHome = r.takeHome / 12;
+  const monthlySavings = monthlyTakeHome * savingsRate;
+  const months = monthlySavings > 0 ? Math.ceil(goalAmount / monthlySavings) : Infinity;
+
+  let goalText = '';
+  if (months === Infinity || months <= 0) {
+    goalText = 'Enter a salary and goal amount to calculate.';
+  } else {
+    const years = Math.floor(months / 12);
+    const rem = months % 12;
+    const timeStr = years > 0 ? `${years} year${years > 1 ? 's' : ''}${rem > 0 ? `, ${rem} month${rem > 1 ? 's' : ''}` : ''}` : `${months} month${months > 1 ? 's' : ''}`;
+    goalText = `With <span class="mono" style="color:var(--accent)">${fmt(Math.round(monthlyTakeHome))}</span>/mo take-home, saving <span style="color:var(--yellow)">${(savingsRate * 100).toFixed(0)}%</span> = <span class="mono" style="color:var(--accent)">${fmt(Math.round(monthlySavings))}</span>/mo<br>
+    <span style="font-size:1.25rem;font-weight:700;color:var(--accent)">Goal of ${fmt(goalAmount)} in ${timeStr}</span>`;
+  }
+  $('goalResult').innerHTML = goalText;
+}
+
+function renderComparison(r) {
+  const stateIdx = $('compareState').selectedIndex;
+  const state = US_STATES[stateIdx];
+  if (!state) return;
+
+  const us = calculateUSComparison(r.salary, state.rate);
+  const savings = us.total - r.totalDeductions;
+  const isPositive = savings >= 0;
+
+  $('compareGrid').innerHTML = `
+    <div class="compare-card">
+      <h4>PR Resident</h4>
+      <div class="big-number small">${fmt(Math.round(r.takeHome))}</div>
+      <div class="sub-text">take-home / year</div>
+      <div style="margin-top:.5rem">
+        <div class="result-row"><span class="result-label">PR Tax</span><span class="result-value mono">${fmt(Math.round(r.prTax))}</span></div>
+        <div class="result-row"><span class="result-label">FICA</span><span class="result-value mono">${fmt(Math.round(r.socialSecurity + r.medicare + r.additionalMedicare + r.seTax))}</span></div>
+        <div class="result-row"><span class="result-label">Fed Tax</span><span class="result-value mono">${r.federalTax === 0 ? '$0 (Exempt)' : fmt(Math.round(r.federalTax))}</span></div>
+        <div class="result-row"><span class="result-label">Total Tax</span><span class="result-value mono red">${fmt(Math.round(r.totalDeductions))}</span></div>
+      </div>
+    </div>
+    <div class="compare-card">
+      <h4>${state.name} Resident</h4>
+      <div class="big-number small">${fmt(Math.round(us.takeHome))}</div>
+      <div class="sub-text">take-home / year</div>
+      <div style="margin-top:.5rem">
+        <div class="result-row"><span class="result-label">Fed Tax</span><span class="result-value mono">${fmt(Math.round(us.fedTax))}</span></div>
+        <div class="result-row"><span class="result-label">State Tax</span><span class="result-value mono">${fmt(Math.round(us.stateTax))}</span></div>
+        <div class="result-row"><span class="result-label">FICA</span><span class="result-value mono">${fmt(Math.round(us.fica))}</span></div>
+        <div class="result-row"><span class="result-label">Total Tax</span><span class="result-value mono red">${fmt(Math.round(us.total))}</span></div>
+      </div>
+    </div>
+    <div class="savings-banner ${isPositive ? '' : 'negative'}">
+      ${isPositive
+        ? `PR saves you <strong>${fmt(Math.round(savings))}</strong>/year vs living in ${state.name}`
+        : `${state.name} saves you <strong>${fmt(Math.round(Math.abs(savings)))}</strong>/year vs PR`
+      }
+    </div>
+  `;
+}
+
+// ─── Share / Copy ────────────────────────────────────────────────
+function updateURL(inputs) {
+  const params = new URLSearchParams();
+  params.set('s', inputs.salary);
+  params.set('e', inputs.empType);
+  params.set('f', inputs.filingStatus);
+  params.set('d', inputs.dependents);
+  if (inputs.act22) params.set('a22', '1');
+  if (inputs.hasFederal) params.set('fed', '1');
+  params.set('pp', inputs.payPeriod);
+  const url = window.location.pathname + '?' + params.toString();
+  history.replaceState(null, '', url);
+}
+
+function loadFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('s')) $('salary').value = parseNum(params.get('s')).toLocaleString();
+  if (params.has('e')) setToggle('empType', params.get('e'));
+  if (params.has('f')) $('filingStatus').value = params.get('f');
+  if (params.has('d')) $('dependents').value = params.get('d');
+  if (params.get('a22') === '1') setToggle('act22', 'yes');
+  if (params.get('fed') === '1') setToggle('fedIncome', 'liable');
+  if (params.has('pp')) $('payPeriod').value = params.get('pp');
+}
+
+function setToggle(id, val) {
+  const btns = document.querySelectorAll(`#${id} button`);
+  btns.forEach(b => b.classList.toggle('active', b.dataset.val === val));
+}
+
+function shareURL() {
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    const btn = document.querySelector('.btn-outline');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.borderColor = 'var(--accent)';
+    btn.style.color = 'var(--accent)';
+    setTimeout(() => { btn.textContent = orig; btn.style.borderColor = ''; btn.style.color = ''; }, 1500);
+  });
+}
+
+function copyToClipboard() {
+  const inputs = getInputs();
+  const r = calculate(inputs);
+  const text = `PR Tax Pro — Salary Summary
+━━━━━━━━━━━━━━━━━━━━━━━━━
+Gross Salary: ${fmt(r.salary)}/year
+Employment: ${inputs.empType.toUpperCase()}
+Filing: ${inputs.filingStatus} | Dependents: ${inputs.dependents}
+
+Deductions:
+  PR Income Tax:   ${fmt(Math.round(r.prTax))}
+  ${r.isSE || r.isMixed ? `SE Tax:           ${fmt(Math.round(r.seTax))}` : `Social Security:  ${fmt(Math.round(r.socialSecurity))}\n  Medicare:          ${fmt(Math.round(r.medicare + r.additionalMedicare))}`}
+  PR Disability:    ${fmt(Math.round(r.disability))}
+  Federal Tax:      ${r.federalTax === 0 ? '$0 (Exempt)' : fmt(Math.round(r.federalTax))}
+  ─────────────────────
+  Total:            ${fmt(Math.round(r.totalDeductions))}
+
+Take-Home: ${fmt(Math.round(r.takeHome))}/year (${fmt(Math.round(r.takeHome / 12))}/mo)
+Effective Rate: ${pct(r.effectiveRate)}
+
+⚠ Estimate only — consult a CPA for official advice.`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.btn-primary');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+}
+
+// ─── Event Wiring ────────────────────────────────────────────────
+function wireToggle(id) {
+  const btns = document.querySelectorAll(`#${id} button`);
+  btns.forEach(btn => btn.addEventListener('click', () => {
+    btns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }));
+}
+
+function init() {
+  // Populate state dropdown
+  const sel = $('compareState');
+  US_STATES.forEach((s, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${s.name} (${s.rate > 0 ? (s.rate * 100).toFixed(1) + '%' : 'No'} state tax)`;
+    sel.appendChild(opt);
+  });
+  // Default to New York for dramatic comparison
+  sel.value = US_STATES.findIndex(s => s.code === 'NY');
+
+  // Wire toggles
+  wireToggle('empType');
+  wireToggle('act22');
+  wireToggle('fedIncome');
+
+  // Wire inputs
+  $('salary').addEventListener('input', () => { formatSalaryInput($('salary')); render(); });
+  $('salary').addEventListener('blur', () => formatSalaryInput($('salary')));
+  $('filingStatus').addEventListener('change', render);
+  $('dependents').addEventListener('change', render);
+  $('payPeriod').addEventListener('change', () => {
+    $('hoursField').style.display = $('payPeriod').value === 'hourly' ? '' : 'none';
+    render();
+  });
+  $('hoursPerWeek').addEventListener('input', render);
+  $('goalAmount').addEventListener('input', () => render());
+  $('goalAmount').addEventListener('blur', () => {
+    const v = parseNum($('goalAmount').value);
+    if (v > 0) $('goalAmount').value = v.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  });
+  $('savingsRate').addEventListener('input', render);
+  $('compareState').addEventListener('change', render);
+
+  // Load from URL if present
+  loadFromURL();
+
+  // Initial render
+  render();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
