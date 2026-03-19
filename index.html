@@ -446,13 +446,20 @@ function calculate(inputs) {
   // PR Taxable Income
   const prTaxableIncome = Math.max(0, salary - personalExemption - dependentDeduction - seDeduction);
 
-  // PR Income Tax (progressive)
-  const prResult = calculateProgressiveTax(prTaxableIncome, PR_BRACKETS);
-  let prTax = prResult.total;
+  // PR Income Tax
+  let prResult, prTax;
+  if (act22) {
+    // Act 60 decree: 4% flat tax on qualifying income
+    prTax = prTaxableIncome * 0.04;
+    prResult = { total: prTax, breakdown: [{ min: 0, max: Infinity, rate: 0.04, label: '4% (Act 60)', amount: prTaxableIncome, taxed: prTax }] };
+  } else {
+    prResult = calculateProgressiveTax(prTaxableIncome, PR_BRACKETS);
+    prTax = prResult.total;
+  }
 
-  // Gradual adjustment
+  // Gradual adjustment (not applicable under Act 60 decree)
   let gradualAdj = 0;
-  if (salary > GRADUAL_ADJ_THRESHOLD) {
+  if (!act22 && salary > GRADUAL_ADJ_THRESHOLD) {
     gradualAdj = (salary - GRADUAL_ADJ_THRESHOLD) * GRADUAL_ADJ_RATE;
     prTax += gradualAdj;
   }
@@ -628,6 +635,7 @@ function renderComparison(r) {
       <div style="margin-top:.5rem">
         <div class="result-row"><span class="result-label">PR Tax</span><span class="result-value mono">${fmt(Math.round(r.prTax))}</span></div>
         <div class="result-row"><span class="result-label">FICA</span><span class="result-value mono">${fmt(Math.round(r.socialSecurity + r.medicare + r.additionalMedicare + r.seTax))}</span></div>
+        <div class="result-row"><span class="result-label">PR Disability</span><span class="result-value mono">${fmt(Math.round(r.disability))}</span></div>
         <div class="result-row"><span class="result-label">Fed Tax</span><span class="result-value mono">${r.federalTax === 0 ? '$0 (Exempt)' : fmt(Math.round(r.federalTax))}</span></div>
         <div class="result-row"><span class="result-label">Total Tax</span><span class="result-value mono red">${fmt(Math.round(r.totalDeductions))}</span></div>
       </div>
