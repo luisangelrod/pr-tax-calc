@@ -18,24 +18,26 @@ jobs:
           echo "Checking index.html exists..."
           test -f index.html || (echo "ERROR: index.html not found" && exit 1)
           echo "Validating HTML syntax..."
-          python3 -c "
+          python3 - << 'PYEOF'
           from html.parser import HTMLParser
+          import re, os, sys
+
           class Validator(HTMLParser):
               pass
+
           with open('index.html', 'r', encoding='utf-8') as f:
               content = f.read()
-          Validator().feed(content)
-          print('HTML syntax OK')
-          print(f'File size: {len(content):,} bytes')
-          "
 
-      - name: Check for console errors in HTML
-        run: |
-          echo "Checking for common issues..."
-          # Warn if there are broken local references
-          grep -oP 'src=["\x27]\K[^"\']+' index.html | grep -v '^http' | grep -v '^data:' | while read ref; do
-            if [ ! -f "$ref" ]; then
-              echo "WARNING: referenced file not found: $ref"
-            fi
-          done
-          echo "Done — CI passed for vanilla HTML project"
+          Validator().feed(content)
+          print(f"HTML syntax OK ({len(content):,} bytes)")
+
+          # Check for broken local src references
+          refs = re.findall(r'src=["\']([^"\']+)["\']', content)
+          broken = [r for r in refs if not r.startswith(('http', 'data:')) and not os.path.exists(r)]
+          if broken:
+              print("WARNING: Missing local files referenced in src=: " + ", ".join(broken))
+          else:
+              print("All local src= references OK (or none present)")
+
+          print("CI passed — vanilla HTML project validated successfully")
+          PYEOF
